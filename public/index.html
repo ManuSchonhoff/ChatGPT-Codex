@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financiera · Cierres semanales</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body{font-family:Inter,Arial,sans-serif;background:#f4f6fb;color:#101828;margin:0}
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    .row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+    .card{background:#fff;border:1px solid #e6e8ec;border-radius:12px;padding:16px}
+    h1{margin:0 0 4px}
+    .muted{color:#667085}
+    table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden}
+    th,td{padding:10px;border-bottom:1px solid #eaecf0;text-align:right;font-size:14px}
+    th:first-child,td:first-child{text-align:left}
+    form{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+    input,button{padding:10px;border-radius:8px;border:1px solid #d0d5dd}
+    button{background:#155eef;color:#fff;border:none;cursor:pointer}
+    #toast{position:fixed;right:16px;bottom:16px;background:#101828;color:#fff;padding:10px 14px;border-radius:8px;display:none}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Dashboard de cierres</h1>
+    <p class="muted">Actualización en tiempo real para socios.</p>
+
+    <div class="row" id="kpis"></div>
+
+    <div class="card" style="margin-top:12px;">
+      <h3>Nuevo cierre semanal</h3>
+      <p class="muted">Solo usuarios con clave pueden cargar datos.</p>
+      <form id="closureForm">
+        <input type="date" name="date" required />
+        <input type="number" step="0.01" name="capital" placeholder="Capital" required />
+        <input type="number" step="0.01" name="gross" placeholder="Bruto" required />
+        <input type="number" step="0.01" name="expenses" placeholder="Gastos" required />
+        <input type="number" step="0.01" name="investments" placeholder="Inversión" required />
+        <input type="number" step="0.01" name="usdtProfit" placeholder="USDT" required />
+        <input type="number" step="0.01" name="debt" placeholder="Deuda" required />
+        <button type="submit">Guardar cierre</button>
+      </form>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <h3>Evolución de capital</h3>
+      <canvas id="capitalChart" height="80"></canvas>
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <h3>Cierres cargados</h3>
+      <table>
+        <thead>
+          <tr><th>Fecha</th><th>Capital</th><th>Ganancia período</th><th>Var %</th><th>Bruto</th><th>Gastos</th><th>Inversión</th><th>Deuda</th></tr>
+        </thead>
+        <tbody id="closuresBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    const money = (n) => new Intl.NumberFormat('es-AR',{style:'currency',currency:'USD'}).format(n);
+    const pct = (n) => `${n.toFixed(2)}%`;
+    let chart;
+
+    function toast(message){
+      const el=document.getElementById('toast');
+      el.textContent=message;
+      el.style.display='block';
+      setTimeout(()=>el.style.display='none',3500);
+    }
+
+    async function loadSummary(){
+      const s = await fetch('/api/summary').then(r=>r.json());
+      document.getElementById('kpis').innerHTML = `
+        <div class="card"><div class="muted">Capital actual</div><h2>${money(s.currentCapital)}</h2></div>
+        <div class="card"><div class="muted">Ganancia acumulada</div><h2>${money(s.totalProfit)}</h2></div>
+        <div class="card"><div class="muted">ROI acumulado</div><h2>${pct(s.roi)}</h2></div>
+        <div class="card"><div class="muted">Último corte</div><h2>${s.lastCutoff}</h2></div>
+      `;
+    }
+
+    async function loadClosures(){
+      const rows = await fetch('/api/closures').then(r=>r.json());
+      document.getElementById('closuresBody').innerHTML = rows.map(r=>`
+        <tr>
+          <td>${new Date(r.date).toLocaleDateString('es-AR')}</td>
+          <td>${money(r.capital)}</td>
+          <td>${money(r.periodProfit)}</td>
+          <td>${pct(r.periodVar)}</td>
+          <td>${money(r.gross)}</td>
+          <td>${money(r.expenses)}</td>
+          <td>${money(r.investments)}</td>
+          <td>${money(r.debt)}</td>
+        </tr>`).join('');
+
+      const labels = rows.map(r=>new Date(r.date).toLocaleDateString('es-AR'));
+      const data = rows.map(r=>r.capital);
+      if(chart) chart.destroy();
+      chart = new Chart(document.getElementById('capitalChart'), {
+        type:'line',
+        data:{labels,datasets:[{label:'Capital',data,borderColor:'#155eef',fill:false,tension:.3}]},
+        options:{plugins:{legend:{display:false}}}
+      });
+    }
+
+    async function refreshAll(){
+      await Promise.all([loadSummary(), loadClosures()]);
+    }
+
+    document.getElementById('closureForm').addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const pass = sessionStorage.getItem('app_pass') || prompt('Ingresá la contraseña para cargar cierre');
+      if(!pass) return;
+      sessionStorage.setItem('app_pass', pass);
+      const formData = new FormData(e.target);
+      const payload = Object.fromEntries(formData.entries());
+      ['capital','gross','expenses','investments','usdtProfit','debt'].forEach(k=>payload[k]=Number(payload[k]));
+
+      const res = await fetch('/api/closures', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-app-password':pass},
+        body:JSON.stringify(payload)
+      });
+
+      if(!res.ok){
+        const err = await res.json();
+        toast(err.error || 'No se pudo guardar');
+        if(res.status===401) sessionStorage.removeItem('app_pass');
+        return;
+      }
+
+      e.target.reset();
+      toast('Cierre guardado correctamente');
+      refreshAll();
+    });
+
+    const events = new EventSource('/api/stream');
+    events.addEventListener('closure-created', (ev)=>{
+      const data = JSON.parse(ev.data);
+      toast(data.message);
+      refreshAll();
+    });
+
+    refreshAll();
+  </script>
+</body>
+</html>
