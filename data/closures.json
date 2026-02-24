@@ -1,0 +1,8 @@
+[
+  {"date":"2026-01-18","capital":104238.91,"gross":199541.66,"expenses":76034.34,"investments":23301.43,"usdtProfit":10760.54,"debt":0},
+  {"date":"2026-01-25","capital":114001.62,"gross":213542.00,"expenses":76234.34,"investments":23301.43,"usdtProfit":10760.54,"debt":0},
+  {"date":"2026-02-01","capital":123764.33,"gross":228518.48,"expenses":81452.72,"investments":23301.43,"usdtProfit":10760.54,"debt":0},
+  {"date":"2026-02-08","capital":147322.77,"gross":257495.30,"expenses":86871.10,"investments":23301.43,"usdtProfit":10760.54,"debt":0},
+  {"date":"2026-02-15","capital":156684.69,"gross":263756.20,"expenses":88274.08,"investments":23797.43,"usdtProfit":10760.54,"debt":5000},
+  {"date":"2026-02-22","capital":158704.35,"gross":268726.89,"expenses":88341.36,"investments":26681.18,"usdtProfit":10760.54,"debt":5000}
+]

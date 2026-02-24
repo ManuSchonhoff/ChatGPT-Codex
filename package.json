@@ -1,0 +1,9 @@
+{
+  "name": "cierres-financiera",
+  "version": "1.0.0",
+  "description": "Aplicación para registrar cierres semanales y ver rendimiento en tiempo real",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
